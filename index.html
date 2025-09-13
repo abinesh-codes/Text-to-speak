@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" type="image/png" sizes="32x32" href="./assets/mic.jpg" />
+<title>Text to Voice Fun</title>
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Text to Voice</h1>
+    <p class="subtitle">Type what you want me to say aloud!</p>
+    <input type="text" placeholder="Enter the text" id="text" autocomplete="off" />
+    
+    <div class="slider-group">
+      <label for="rate">Speech Rate: <span id="rate-value">1</span></label>
+      <input type="range" id="rate" min="0.5" max="2" value="1" step="0.1" />
+    </div>
+    
+    <div class="slider-group">
+      <label for="pitch">Pitch: <span id="pitch-value">1</span></label>
+      <input type="range" id="pitch" min="0.1" max="2" value="1" step="0.1" />
+    </div>
+    
+    <div class="slider-group">
+      <label for="volume">Volume: <span id="volume-value">1</span></label>
+      <input type="range" id="volume" min="0" max="1" value="1" step="0.1" />
+    </div>
+    
+    <div class="slider-group voice-select-group">
+      <label for="voice-search">Voice (Search & Select):</label>
+      <input type="text" id="voice-search" placeholder="Click or type to filter voices..." autocomplete="off" />
+      <ul id="voice-list" tabindex="0" class="hidden"></ul>
+    </div>
+    
+    <div class="buttons-row">
+      <button id="speakBtn" title="Speak Text">🔊 Speak</button>
+      <button id="stopBtn" title="Stop Speaking">⏹ Stop</button>
+      <button id="newSentenceBtn" title="Speak New Sentence">💬 New Sentence</button>
+      <button id="clearBtn" title="Clear Text">✖️ Clear</button>
+    </div>
+    
+    <p class="counter">Times spoken: <span id="counter">0</span></p>
+    
+    <div class="emoji" id="emoji">😃</div>
+  </div>
+
+  <script>
+    const textInput = document.getElementById('text');
+    const rateSlider = document.getElementById('rate');
+    const pitchSlider = document.getElementById('pitch');
+    const volumeSlider = document.getElementById('volume');
+    const voiceSearchInput = document.getElementById('voice-search');
+    const voiceList = document.getElementById('voice-list');
+    const rateValue = document.getElementById('rate-value');
+    const pitchValue = document.getElementById('pitch-value');
+    const volumeValue = document.getElementById('volume-value');
+    const counterSpan = document.getElementById('counter');
+    const emoji = document.getElementById('emoji');
+    const clearBtn = document.getElementById('clearBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const newSentenceBtn = document.getElementById('newSentenceBtn');
+    const speakBtn = document.getElementById('speakBtn');
+
+    let counter = 0;
+    let voices = [];
+    let selectedVoiceIndex = 0;
+
+    function updateVoiceList(filter = '') {
+      voiceList.innerHTML = '';
+      voices.forEach((voice, i) => {
+        if (voice.name.toLowerCase().includes(filter.toLowerCase()) || voice.lang.toLowerCase().includes(filter.toLowerCase())) {
+          const li = document.createElement('li');
+          li.textContent = `${voice.name} (${voice.lang})${voice.default ? ' — Default' : ''}`;
+          li.dataset.index = i;
+          if (i === selectedVoiceIndex) li.classList.add('active');
+          voiceList.appendChild(li);
+        }
+      });
+      if (voiceList.children.length === 0) {
+        voiceList.innerHTML = '<li class="no-results">No voices found</li>';
+      }
+    }
+
+    function populateVoices() {
+      voices = speechSynthesis.getVoices().sort((a, b) => a.name.localeCompare(b.name));
+      updateVoiceList();
+      if (voices[selectedVoiceIndex]) {
+        voiceSearchInput.value = `${voices[selectedVoiceIndex].name} (${voices[selectedVoiceIndex].lang})`;
+      } else {
+        voiceSearchInput.value = '';
+      }
+    }
+
+    speechSynthesis.onvoiceschanged = populateVoices;
+    populateVoices();
+
+    rateSlider.oninput = () => {
+      rateValue.textContent = rateSlider.value;
+    };
+    pitchSlider.oninput = () => {
+      pitchValue.textContent = pitchSlider.value;
+    };
+    volumeSlider.oninput = () => {
+      volumeValue.textContent = volumeSlider.value;
+    };
+
+    voiceSearchInput.addEventListener('focus', () => {
+      voiceList.classList.remove('hidden');
+      updateVoiceList(voiceSearchInput.value);
+    });
+
+    // Hide voice list if click is outside search and list
+    document.addEventListener('click', (e) => {
+      if (!voiceSearchInput.contains(e.target) && !voiceList.contains(e.target)) {
+        voiceList.classList.add('hidden');
+      }
+    });
+
+    voiceSearchInput.addEventListener('input', (e) => {
+      updateVoiceList(e.target.value);
+      voiceList.classList.remove('hidden');
+    });
+
+    voiceList.addEventListener('click', (e) => {
+      if (e.target && e.target.tagName === 'LI' && !e.target.classList.contains('no-results')) {
+        const index = parseInt(e.target.dataset.index);
+        if (!isNaN(index)) {
+          selectedVoiceIndex = index;
+          Array.from(voiceList.children).forEach(li => li.classList.remove('active'));
+          e.target.classList.add('active');
+          voiceSearchInput.value = e.target.textContent;
+          voiceList.classList.add('hidden');
+        }
+      }
+    });
+
+    // Speak Functionality
+    function speak() {
+      if (!textInput.value.trim()) return;
+      speechSynthesis.cancel(); // Cancel any ongoing speech
+      const utterance = new SpeechSynthesisUtterance(textInput.value);
+      utterance.rate = rateSlider.value;
+      utterance.pitch = pitchSlider.value;
+      utterance.volume = volumeSlider.value;
+      utterance.voice = voices[selectedVoiceIndex] || null;
+
+      emoji.textContent = '🔊';
+      utterance.onend = () => {
+        emoji.textContent = '😃';
+      };
+
+      speechSynthesis.speak(utterance);
+
+      counter++;
+      counterSpan.textContent = counter;
+    }
+
+    speakBtn.onclick = speak;
+
+    stopBtn.onclick = () => {
+      speechSynthesis.cancel();
+      emoji.textContent = '😃';
+    };
+
+    newSentenceBtn.onclick = () => {
+      const newText = "Hello! Here's a new sentence for you to enjoy.";
+      textInput.value = newText;
+      speak();
+    };
+
+    clearBtn.onclick = () => {
+      textInput.value = '';
+      textInput.focus();
+    };
+
+    // Bubble animation - create 20 bubbles
+    const container = document.querySelector('.container');
+    for (let i = 0; i < 20; i++) {
+      const bubble = document.createElement('div');
+      bubble.classList.add('bubble');
+      bubble.style.left = `${Math.random() * 100}%`;
+      bubble.style.animationDelay = `${Math.random() * 10}s`;
+      container.appendChild(bubble);
+    }
+  </script>
+</body>
+</html>
